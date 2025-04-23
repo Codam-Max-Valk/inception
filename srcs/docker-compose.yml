@@ -1,52 +1,31 @@
 services:
-  # mariadb:
-  #   build:
-  #     context: ./requirements/mariadb
-  #   container_name: mariadb
-  #   restart: always
-  #   secrets:
-  #     - db_password
-  #     - db_root_password
-  #   environment:
-  #     MYSQL_DATABASE: "${MYSQL_DB}"
-  #     MYSQL_USER: "${MYSQL_USER}"
-  #     MYSQL_PASSWORD_FILE: "${MYSQL_PASSWORD_FILE}"
-  #     MYSQL_ROOT_PASSWORD_FILE: "${MYSQL_ROOT_PASSWORD_FILE}"
-  #   volumes:
-  #     - mariadb_data:/var/lib/mysql
-  #   # ports:
-  #   #   - 3306:3306
-  #   networks:
-  #     - docker_network
-  #   env_file:
-  #     - .env
+  mariadb:
+    build:
+      context: ./requirements/mariadb
+    container_name: mariadb
+    restart: always
+    environment:
+      MYSQL_DATABASE: "wordpress"
+      MYSQL_USER: "wordpress"
+      MYSQL_PASSWORD: "wordpress_password"
+      MYSQL_ROOT_PASSWORD: "root_password"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - docker_network
 
   wordpress:
     build: ./requirements/wordpress
     container_name: wordpress-php
-  #   restart: always
-  #   secrets:
-  #     - credentials
-  #     - db_password
-  #     - db_root_password
-  #   environment:
-  #     WP_ADMIN_USER: "${WP_ADMIN_USER}"
-  #     WP_ADMIN_PASSWORD_FILE: "${WP_ADMIN_PASSWORD_FILE}"
-  #     WP_SITE_TITLE: "${WP_SITE_TITLE}"
-  #     MYSQL_HOST: "mariadb"
-  #     MYSQL_USER: "${MYSQL_USER}"
-  #     MYSQL_PASSWORD_FILE: "${MYSQL_PASSWORD_FILE}"
-  #     MYSQL_DATABASE: "${MYSQL_DB}"
-  #   volumes:
-  #     - wordpress_data:/var/www/html
-  #   # ports:
-  #   #   - 9000:9000
-  #   depends_on:
-  #     - mariadb
-  #   networks:
-  #     - docker_network
-  #   env_file:
-  #     - .env
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - wordpress_data:/var/www/html
+    depends_on:
+      - mariadb
+    networks:
+      - docker_network
 
   nginx:
     build:
@@ -55,23 +34,27 @@ services:
     restart: always
     ports:
       - "443:443"
-    # secrets:
-    #   - credentials
-    #   - db_password
-    #   - db_root_password
-    # environment:
-    #   DOMAIN_NAME: "${DOMAIN_NAME}"
-    # depends_on:
-    #   - wordpress
-    # networks:
-    #   - docker_network
-    # env_file:
-    #   - .env
+    depends_on:
+      - wordpress
+    networks:
+      - docker_network
+    volumes:
+      - wordpress_data:/var/www/html
 
-    # secrets:
-    #   db_password:
-    #     file: ../secrets/db_password.txt
-    #   db_root_password:
-    #     file: ../secrets/db_root_password.txt
-    #   credentials:
-    #     file: ../secrets/credentials.txt
+networks:
+  docker_network:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /Users/maxvalk/Desktop/Codam/inception/data/mariadb
+      o: bind
+  wordpress_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /Users/maxvalk/Desktop/Codam/inception/data/wordpress
+      o: bind
