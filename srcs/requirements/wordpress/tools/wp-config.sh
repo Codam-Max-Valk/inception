@@ -1,100 +1,83 @@
 #!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status.
 set -e
 
-# Define path for WordPress installation
-WP_PATH=/var/www/html
+echo "=== WordPress container starting ==="
 
-# Wait a bit for MariaDB container to be ready (simple sleep, a better check is recommended)
-# A more robust check would involve trying to connect to the DB port.
-# echo "Waiting for MariaDB..."
-# sleep 10
+# Wait for database to be ready
+echo "=== Waiting for database connection ==="
+MAX_ATTEMPTS=20
+RETRY_INTERVAL=3
 
-# Check if WordPress is already installed by looking for wp-config.php
-if [ -f "$WP_PATH/wp-config.php" ]; then
-    echo "WordPress already configured."
-else
-    echo "Configuring WordPress..."
+# Wait for MySQL server to be reachable
+until nc -z mariadb 3306 || [ $MAX_ATTEMPTS -eq 0 ]; do
+    echo "Waiting for MariaDB server... ($MAX_ATTEMPTS attempts left)"
+    MAX_ATTEMPTS=$((MAX_ATTEMPTS-1))
+    sleep $RETRY_INTERVAL
+done
 
-    # Extract WordPress files if latest.tar.gz exists and directory is empty/not fully set up
-    if [ -f "$WP_PATH/latest.tar.gz" ]; then
-        echo "Extracting WordPress..."
-        tar -xzf $WP_PATH/latest.tar.gz --strip-components=1 -C $WP_PATH
-        rm $WP_PATH/latest.tar.gz
-        # Ensure www-data owns the files for PHP-FPM process
-        chown -R www-data:www-data $WP_PATH
-    else
-        # If tarball isn't there, maybe volume was mounted with existing files?
-        # We still need to ensure wp-config isn't there before proceeding.
-        echo "WordPress archive not found, assuming files exist or checking config..."
-        if [ -f "$WP_PATH/wp-config.php" ]; then
-             echo "WordPress already configured (found wp-config.php)."
-             exec "$@" # Skip setup and run the CMD (php-fpm)
-        fi
-        # If wp-config.php is not found even without the tarball, something is wrong or needs setup.
-        # Attempt setup anyway, wp-cli will download if needed.
+if [ $MAX_ATTEMPTS -eq 0 ]; then
+    echo "Failed to connect to MariaDB server"
+    exit 1
+fi
+
+# Wait for MySQL authentication to succeed
+echo "Testing database credentials..."
+until mysql -h"$MYSQL_HOST" -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" &>/dev/null; do
+    echo "Waiting for database authentication..."
+    sleep $RETRY_INTERVAL
+    MAX_ATTEMPTS=$((MAX_ATTEMPTS-1))
+    
+    if [ $MAX_ATTEMPTS -eq 0 ]; then
+        echo "Database authentication failed"
+        exit 1
     fi
+done
 
-    # Ensure environment variables are set (Docker Compose should provide these)
-    # Check for essential DB variables
-    : "${WP_DB_NAME?Need to set WP_DB_NAME}"
-    : "${WP_DB_USER?Need to set WP_DB_USER}"
-    : "${WP_DB_PASSWORD?Need to set WP_DB_PASSWORD}"
-    : "${WP_DB_HOST?Need to set WP_DB_HOST}"
-    # Check for essential WP Admin variables
-    : "${WP_URL?Need to set WP_URL}"
-    : "${WP_TITLE?Need to set WP_TITLE}"
-    : "${WP_ADMIN_USER?Need to set WP_ADMIN_USER}"
-    : "${WP_ADMIN_PASSWORD?Need to set WP_ADMIN_PASSWORD}"
-    : "${WP_ADMIN_EMAIL?Need to set WP_ADMIN_EMAIL}"
-    # Check for essential WP User variables
-    : "${WP_USER?Need to set WP_USER}"
-    : "${WP_PASSWORD?Need to set WP_PASSWORD}"
-    : "${WP_EMAIL?Need to set WP_EMAIL}"
+echo "=== Database connected successfully ==="
 
+# Install WordPress if not already installed
+if [ ! -f "/var/www/html/wp-config.php" ]; then
+    echo "=== Installing WordPress ==="
+    wp core download --allow-root
 
-    # Use wp-cli to create wp-config.php
-    # --allow-root is necessary because we are running this script as root
-    # It's generally safer to run wp-cli commands as the web server user (www-data),
-    # but requires more complex user switching (su -s /bin/bash www-data -c "wp ...")
-    echo "Creating wp-config.php..."
+    # Create wp-config.php
     wp config create --allow-root \
-        --dbname="$WP_DB_NAME" \
-        --dbuser="$WP_DB_USER" \
-        --dbpass="$WP_DB_PASSWORD" \
-        --dbhost="$WP_DB_HOST" \
-        --path="$WP_PATH" \
-        --force # Use --force to overwrite if somehow a stub exists
-
-    # Install WordPress core
-    # This command sets up the database tables and site options
-    echo "Installing WordPress core..."
+        --dbname="$MYSQL_DATABASE" \
+        --dbuser="$MYSQL_USER" \
+        --dbpass="$MYSQL_PASSWORD" \
+        --dbhost="$MYSQL_HOST"
+    
+    # Install WordPress
     wp core install --allow-root \
         --url="$WP_URL" \
         --title="$WP_TITLE" \
         --admin_user="$WP_ADMIN_USER" \
         --admin_password="$WP_ADMIN_PASSWORD" \
-        --admin_email="$WP_ADMIN_EMAIL" \
-        --path="$WP_PATH" \
-        --skip-email # Avoid sending email on install
-
-    # Create the additional user as specified in the subject
-    echo "Creating WordPress user..."
+        --admin_email="$WP_ADMIN_EMAIL"
+    
+    # Create additional user
     wp user create --allow-root \
-        "$WP_USER" \
-        "$WP_EMAIL" \
+        "$WP_USER" "$WP_EMAIL" \
         --user_pass="$WP_PASSWORD" \
-        --role=author \
-        --path="$WP_PATH"
-
-    # Set ownership again after wp-cli operations, just in case
-    chown -R www-data:www-data $WP_PATH
-
-    echo "WordPress configuration complete."
-
+        --role=author
+    
+    # Set correct permissions
+    chown -R www-data:www-data /var/www/html
+    
+    echo "=== WordPress installed successfully ==="
+else
+    echo "=== Using existing WordPress installation ==="
 fi
 
-# Execute the default command (CMD) passed to the entrypoint (e.g., php-fpm)
-echo "Starting PHP-FPM..."
-exec "$@"
+# Create both healthcheck endpoints to match what's in docker-compose
+mkdir -p /var/www/html/healthz
+echo "<?php echo 'OK'; ?>" > /var/www/html/healthz/index.php
+mkdir -p /var/www/html/status
+echo "<?php echo 'OK'; ?>" > /var/www/html/status/index.php
+
+# Fix permissions
+chown -R www-data:www-data /var/www/html
+
+echo "=== Starting PHP-FPM ==="
+# Start PHP-FPM in foreground mode with extra verbosity 
+exec php-fpm7.4 -F

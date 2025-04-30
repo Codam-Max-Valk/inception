@@ -1,49 +1,59 @@
 services:
   mariadb:
-    build:
-      context: ./requirements/mariadb
+    build: ./requirements/mariadb
     container_name: mariadb
     restart: always
-    environment:
-      MYSQL_DATABASE: "wordpress"
-      MYSQL_USER: "wordpress"
-      MYSQL_PASSWORD: "wordpress_password"
-      MYSQL_ROOT_PASSWORD: "root_password"
+    env_file: .env
     volumes:
       - mariadb_data:/var/lib/mysql
     networks:
-      - docker_network
+      - backend
+    healthcheck:
+      test: [ "CMD", "/usr/local/bin/healthcheck.sh" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   wordpress:
     build: ./requirements/wordpress
-    container_name: wordpress-php
+    container_name: wordpress
     restart: always
-    env_file:
-      - .env
+    env_file: .env
+    depends_on:
+      mariadb:
+        condition: service_healthy
     volumes:
       - wordpress_data:/var/www/html
-    depends_on:
-      - mariadb
     networks:
-      - docker_network
+      - backend
+      - frontend
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   nginx:
     build:
       context: ./requirements/nginx
+      args:
+        DOMAIN_NAME: "${DOMAIN_NAME}"
     container_name: nginx
     restart: always
     ports:
       - "443:443"
+    volumes:
+      - wordpress_data:/var/www/html:ro
     depends_on:
       - wordpress
     networks:
-      - docker_network
-    volumes:
-      - wordpress_data:/var/www/html
+      - frontend
 
 networks:
-  docker_network:
-    driver: bridge
+  backend:
+  frontend:
+
 
 volumes:
   mariadb_data:
