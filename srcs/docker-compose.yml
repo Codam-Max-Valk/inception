@@ -7,7 +7,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     networks:
-      - backend
+      - inception_network
     healthcheck:
       test: [ "CMD", "/usr/local/bin/healthcheck.sh" ]
       interval: 5s
@@ -26,21 +26,14 @@ services:
     volumes:
       - wordpress_data:/var/www/html
     networks:
-      - backend
-      - frontend
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/healthz" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      - inception_network
 
   nginx:
-    build:
-      context: ./requirements/nginx
-      args:
-        DOMAIN_NAME: "${DOMAIN_NAME}"
+    build: ./requirements/nginx
     container_name: nginx
     restart: always
+    env_file:
+      - .env
     ports:
       - "443:443"
     volumes:
@@ -48,12 +41,11 @@ services:
     depends_on:
       - wordpress
     networks:
-      - frontend
+      - inception_network
 
 networks:
-  backend:
-  frontend:
-
+  inception_network:
+    driver: bridge
 
 volumes:
   mariadb_data:

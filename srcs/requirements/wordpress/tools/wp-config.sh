@@ -80,4 +80,4 @@ chown -R www-data:www-data /var/www/html
 
 echo "=== Starting PHP-FPM ==="
 # Start PHP-FPM in foreground mode with extra verbosity 
-exec php-fpm7.4 -F
+exec "$@"
