@@ -9,7 +9,7 @@ services:
     networks:
       - inception_network
     healthcheck:
-      test: [ "CMD", "/usr/local/bin/healthcheck.sh" ]
+      test: [ "CMD-SHELL", "mariadb-admin ping -h localhost -u root -p\"$${MYSQL_ROOT_PASSWORD}\" --silent" ]
       interval: 5s
       timeout: 3s
       retries: 5

@@ -23,3 +23,5 @@ EXPOSE 3306
 
 # Use simple entrypoint (no CMD needed as it's included in entrypoint)
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+CMD [ "mysqld", "--user=mysql", "--console" ]

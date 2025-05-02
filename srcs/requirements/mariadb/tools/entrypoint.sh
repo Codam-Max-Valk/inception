@@ -3,7 +3,6 @@ set -e
 
 # CRITICAL FIX: Unset MySQL environment variables that affect client connections
 # These are causing the client to try connecting to 'mariadb' instead of socket
-unset MYSQL_HOST
 unset MYSQL_TCP_PORT
 
 # Set database directory
@@ -96,4 +95,5 @@ mysqladmin ping" > /usr/local/bin/healthcheck.sh
 chmod +x /usr/local/bin/healthcheck.sh
 
 echo "=== Starting MariaDB server in foreground ==="
-exec mysqld --user=mysql
+
+exec "$@"
