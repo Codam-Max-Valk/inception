@@ -5,7 +5,7 @@ services:
     restart: always
     env_file: .env
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - /home/mvalk/data/mariadb:/var/lib/mysql
     networks:
       - inception_network
     healthcheck:
@@ -24,7 +24,7 @@ services:
       mariadb:
         condition: service_healthy
     volumes:
-      - wordpress_data:/var/www/html
+      - /home/mvalk/data/wordpress:/var/www/html
     networks:
       - inception_network
 
@@ -37,7 +37,7 @@ services:
     ports:
       - "443:443"
     volumes:
-      - wordpress_data:/var/www/html:ro
+      - /home/mvalk/data/wordpress:/var/www/html:ro
     depends_on:
       - wordpress
     networks:
@@ -46,17 +46,3 @@ services:
 networks:
   inception_network:
     driver: bridge
-
-volumes:
-  mariadb_data:
-    driver: local
-    driver_opts:
-      type: none
-      device: /Users/maxvalk/Desktop/Codam/inception/data/mariadb
-      o: bind
-  wordpress_data:
-    driver: local
-    driver_opts:
-      type: none
-      device: /Users/maxvalk/Desktop/Codam/inception/data/wordpress
-      o: bind
