@@ -10,14 +10,13 @@ down:
 	@echo "Stopping and removing containers..."
 	@docker compose -f srcs/docker-compose.yml down
 
-clean: down
-	@echo "Removing volumes..."
-	@docker volume rm -f $(shell docker volume ls -q | grep mariadb_data) || true
-	@docker volume rm -f $(shell docker volume ls -q | grep wordpress_data) || true
+clean:
+	@echo "Stopping containers and removing volumes..."
+	@docker compose -f srcs/docker-compose.yml down -v
 
 fclean: clean
 	@echo "Removing all images..."
-	@docker image prune -a -f
+	@docker system prune -a -f
 
 re: fclean all
 
