@@ -17,6 +17,8 @@ clean:
 fclean: clean
 	@echo "Removing all images..."
 	@docker system prune -a -f
+	@sudo rm -rf /home/mvalk/data/mariadb
+	@sudo rm -rf /home/mvalk/data/wordpress
 
 re: fclean all
 
